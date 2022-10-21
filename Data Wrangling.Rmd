@@ -1,0 +1,604 @@
+---
+title: "DATA WRANGLING"
+author: "Sitmang E.G"
+date: "9/7/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+?gapminder
+?datasets
+library(help = "datasets")
+
+#load libraries
+library(ggplot2)
+library(readr)
+library(tibble)
+library(purrr)
+library(stringr)
+library(dplyr)
+
+```
+```{r}
+#to view packages
+attach(iris)
+view(iris)
+```
+```{r}
+iris_tibble <- as_tibble(iris)
+iris_tibble
+view(iris_tibble)
+dim(iris_tibble)
+
+?iris
+```
+```{r}
+#using the head method
+head(iris_tibble)
+
+#using the print method
+print(iris_tibble, n=Inf)
+```
+```{r}
+name <- c("Godwin","Phoebe","Ugoche","Peter","John")
+birthyear<- c("1982","1984","1983","1987","1980")
+eyecolor<- c("black","golden","blue","red","golden")
+monthbirth<- c("jan","feb","nov","nov","may")
+
+people <- tibble(name,eyecolor,birthyear,monthbirth)
+print(people)
+```
+```{r}
+
+```
+senior <- people[c(1,3,5),]
+senior
+```{r}
+senior <- people[c(1,3,5),]
+senior
+
+eyec<- people[c(1,2,3,4,5),1:2]
+eyec
+```
+
+
+```{r}
+people$eyecolor #returns a tibble
+
+people[["eyecolor"]] #using the square bracket method (a list)
+
+people["eyecolor"] #returns a vector
+
+unique(people["eyecolor"])# to print without duplicate values
+
+```
+########Retrieving data using indexing ###################
+```{r}
+people[[1]] #to get a view of any dataset
+
+philip <- people[[2]]
+philip
+
+unique(philip)
+```
+Create new tibble into its own only 
+```{r}
+#create new tibble with only people who have golden eyes
+GoldenEyes <- filter(people, eyecolor=="golden")
+GoldenEyes
+
+##extract only people with birth year greater than 1980
+
+birth <- filter(people, birthyear >1980)
+birth
+
+```
+
+```{r}
+# without specifying the row by default it brings out 6 rows
+attach(mtcars)
+mydata <- mtcars
+head(mydata)
+?mtcars
+```
+
+```{r}
+library(help="datasets")
+?mtcars
+
+mynewcars <-as_tibble(mtcars)
+mynewcars
+
+mynewiris <-as_tibble(iris)
+mynewiris
+
+view(mynewcars) # view dataset
+view(mynewiris) #view dataset
+```
+```{r}
+?filter
+filter(mynewcars, cyl > 4 & gear >4)
+
+filter(mynewcars, cyl > 4)
+
+filter(mynewiris, Species %in% c("setosa","virginica"))
+
+filter(mynewiris, Species == c("virginica","setosa")) #assign
+
+```
+```{r}
+#use select 
+select(mynewcars, cyl, hp, wt)
+
+#where you can use(-) to remove columns
+select(mynewcars, -cyl, -mpg)
+
+#hide a range of columns
+select(mynewcars, -c(cyl,mpg))
+
+#select series of columns
+select(mynewcars, mpg:drat)
+```
+```{r}
+```
+### Chaining or Pipelining ####
+A way to perform multiple functions; taking the output
+```{r}
+philip1 <- mynewcars %>%
+  select(cyl,wt,gear) %>%
+  filter(wt>2)
+philip1
+```
+```{r}
+fil <- mynewcars %>% 
+  select(cyl,wt,gear) %>%
+   arrange(desc(wt)) %>%
+  filter(wt>3)
+fil
+```
+
+```{r}
+write.csv(philip1, "philip1.csv")
+
+write_excel_csv(philip1,"philip1.xlxs")
+
+help(list.files)
+dir()
+```
+
+###  view the file that was saved in the current directory #####
+```{r}
+?list.files
+list.files(".", pattern = "phil")
+```
+
+
+```{r}
+eng<- read.csv("philip1.csv") #base R
+eng
+intern <- read_csv("philip1.csv")
+intern
+```
+
+
+```{r}
+intern <- select(intern, -c(...1))
+intern
+view(intern)
+```
+
+##Importing data from a working directory of files
+```{r}
+#read file from an external directory
+data = read.csv(file.choose(),header=TRUE, sep= ",")
+data
+data1 = read.csv("C:\\Users\\nenbon\\Documents\\Pandas course datasets\\cities.csv")
+data1
+getwd() #to get working directory
+setwd("/users/user/Downloads") #set working directing
+data2 = read.csv("cities.csv")
+view(data2)
+
+```
+
+
+```{r}
+data_new <- mynewcars %>%
+  select(mpg, cyl) %>%
+  mutate(philip = mpg*cyl)
+data_new
+```
+
+
+```{r}
+#get column names
+colnames(mynewiris)
+```
+
+
+```{r}
+mynewiris %>%
+  group_by(Species) %>%
+  summarise(mean = mean(Sepal.Length, na.rm = TRUE))
+```
+
+
+```{r}
+mynewcars %>%
+  rename(miles_per_gallon=mpg, cylinder=cyl)
+```
+
+
+```{r}
+filter(mynewiris, Species=="setosa")
+#or
+mynewiris$Species %>%
+  str_subset("v", negate = FALSE)
+
+?str_subset
+```
+
+
+```{r}
+name <- c("Godwin","Phoebe","Ugoche","Peter","John")
+birthyear<- c("1982","1984","1983","1987","1980")
+eyecolor<- c("black","golden","blue","red","golden")
+monthbirth<- c("jan","feb","nov","nov","may")
+Stateoforigin<-c("Enugu", "Anambra","Imo","Plateau","Abia")
+CourseOfStudy<-c("Computer Sc.","Accounting","Agric Sc.","Statistics","Pol Sc.")
+Gender<-c("male","female","Female","male","male")
+Height<-c("1.77m","1.66m","1.75m","1.73m","1.73m")
+people <- tibble(name,eyecolor,birthyear,monthbirth,Stateoforigin,CourseOfStudy,Gender,Height)
+print(people)
+```
+
+
+## Class work ###
+### create a tibble which consist of team Apex ID, hobby, favorite meal, religion
+### sample 65% of your population without replacement
+### what are the distinct religion
+
+##Arrange cases ###
+# Arrange() orders rows by values of a column or column(low to high)
+## use with desc() to order from hogh to low
+```{r}
+ID<- c("01","001","010","100","011")
+
+name <- c("Godwin","Phoebe","Ugoche","Peter","John")
+
+Hobby<-c("Sport","Sport","Reading","Swimming","Politics")
+Preferred_meal<- c("Pizza","Potatoes","Chicken","Tuwo Shinkafa","Pepper soup")
+Religion<- c("Christianity","Christianity","Islam","Traditionalist","Babalawo")
+MaritalStatus<- c("single","married","married","not interested","married")
+name <- c("Godwin","Phoebe","Ugoche","Peter","John")
+birthyear<- c("1982","1984","1983","1987","1980")
+monthbirth<- c("jan","feb","nov","nov","may")
+Stateoforigin<-c("Enugu", "Anambra","Imo","Plateau","Abia")
+CourseOfStudy<-c("Computer Sc.","Accounting","Agric Sc.","Statistics",
+                 "Pol Sc.")
+Gender<-c("male","female","Female","male","male")
+Height<-c("1.77m","1.66m","1.75m","1.73m","1.73m")
+
+Profile<- tibble(ID,Stateoforigin,Hobby,Gender,CourseOfStudy,Preferred_meal,Religion,MaritalStatus,)
+print(Profile)
+```
+```{r}
+Profile$Hobby
+Profile["Hobby"]
+Profile1<- Profile["Hobby"]
+Profile1
+unique(Profile1)
+```
+
+```{r}
+data()
+```
+```{r}
+data(trees)
+view(trees)
+```
+```{r}
+trees[1:5,]
+```
+
+```{r}
+attach(trees)
+three<- trees
+head(three)
+```
+```{r}
+trees$Girth
+trees["Girth"]
+
+```
+```{r}
+mean(Girth)
+```
+```{r}
+summary(trees)
+```
+```{r}
+par(mfrow=c(2,2))
+
+```
+```{r}
+plot("Height","Volume")
+
+```
+```{r}
+```
+
+#### DATA WRANGLING 2 ######
+```{r}
+summarise(mynewcars, av= mean(mpg, na.rm = TRUE))
+```
+```{r}
+#or
+mynewcars$mpg %>%
+  mean()
+```
+```{r}
+count(mynewcars, cyl) #count number of rows in each 
+unique(mynewcars$cyl) #check for the unique values
+```
+```{r}
+attach(starwars)
+
+starwars <- as_tibble(starwars)
+view(starwars)
+?starwars
+```
+```{r}
+starwars_update <- starwars %>%
+  mutate(film_count = length(films))
+view(starwars_update)
+```
+```{r}
+#distinct() removes rows with duplicate values
+count (starwars, homeworld)
+
+distinct(starwars, homeworld)
+```
+```{r}
+## slice() selects rows by position
+slice(starwars, 10:15)
+```
+```{r}
+```
+
+slice sample() randomly selects rows use n to select a number of rows and prop() to select a fraction of rows
+"props" means proportion which means the dataset should be sample by 70
+of the dataset
+```{r}
+slice_sample(starwars, n=5, replace = TRUE)
+
+slice_sample(starwars, prop = 0.7, replace = T)
+```
+```{r}
+#slice_min and slice_max select rows with the lowest and highest values
+slice_min(mynewcars, mpg, prop = 0.25)
+
+slice_max(mynewcars, mpg, prop = 0.25)
+
+```
+```{r}
+
+```
+########## ASSIGNMENT ######
+
+create a tibble populate it with members of team apex. names, hobby, favorite meal, religion marital status, state of origin, course of study,gender.
+1. check out the different kind of hobbies without repetition
+2. sample 65% of your population without replacement
+3. what are the distinct religion
+
+
+### Arrange cases ######
+Arrange() orders rows by values of a column or column(low to high), use
+with desc() to order from high to low
+```{r}
+name<- c("John","Fibi","Peter","Godwin","Ugoche")
+hobby<- c("football","wrestling","swimming","sport","travelling")
+favorite_meal<- c("amala","rice","tuwo shinkafa","chinese dish","egosi")
+religion<- c("christianity","christianity","moralist","moralist","not sure")
+marital_status<- c("married","still searching","not interested","married","married")
+state<- c("kaduna","Imo","plateau","kwara","anambra")
+course<- c("political sc.","accounting","stats","computer sc.","agric sc.")
+team_apex <- tibble(name,hobby,favorite_meal,religion,marital_status,state,course)
+team_apex
+```
+```{r}
+unique(hobby)
+```
+```{r}
+slice_sample(team_apex, n=3, replace=FALSE)
+
+slice_sample(team_apex, prop=0.65, replace=F)
+```
+```{r}
+distinct(team_apex,religion)
+```
+### DATA VISUALIZATION ####
+
+R has a rich set of inbuilt features to visualize data using a range of chart types.
+in addition
+R also 
+```{r}
+library(help="ggplot2")
+```
+```{r}
+view(iris)
+
+p<- iris %>%
+  ggplot( aes(x=Sepal.Length)) +
+  geom_histogram(binwidth=1, fill = "blue",color="red", alpha=20)+
+  ggtitle("IRIS DATA PLOT")+
+  xlab("SEPAL.LENGTH")+
+  ylab("COUNT")
+p
+```
+
+```{r}
+##Graphics
+hist(iris$Sepal.Width)
+```
+```{r}
+##line gr
+data_name <- data.frame(
+  year = c(1980,1981,1982,1983,1984,1985),
+  name = c("John","Fibi","Peter","Godwin","Ugoche","ThankGod"),
+ Age = c(24,26,45,36,40,35)
+)
+data_name
+```
+```{r}
+view(starwars)
+data_name %>%
+  ggplot() + 
+  geom_line(aes(x = year, y = Age),
+            lwd = 1.0, color = "darkgreen") +
+  ggtitle("Basic Line Plot", subtitle = "Team Apex Name and year ") +
+  xlab("YEAR") +
+  ylab("Age") +
+  theme_bw() +
+  theme(axis.text.x = element_text(face = "bold", size = 15),
+        axis.text.y = element_text(face = "bold", size = 10))
+```
+```{r}
+ggplot(data_name)+
+geom_line(aes(x = year, y = Age, color = name, lty = "dotted"), lwd = 1.25) +
+  ggtitle("Line Plot with feature differention") +
+  xlab("YEAR")+
+  ylab("Age") +
+  theme_bw() +
+  theme(axis.text.x = element_text(face = "bold", size = 10),
+        axis.text.y = element_text(face = "bold", size = 10))
+
+```
+
+## Scatter Plot ###
+```{r}
+iris <- mynewiris
+iris %>%  
+  ggplot() +
+  geom_point(aes(x = Sepal.Length , y = Sepal.Width,
+                 color = Species, shape = Species), size = 4) +
+  ggtitle("Scatter Plot with feature differentiation 1") +
+  xlab("Sepal LENGTH") +
+  ylab("SEPAL WIDTH") +
+  theme_bw() +
+  theme(axis.text.x = element_text(face = "bold.italic", 
+                                   size = 10, angle = 0),
+        axis.text.y = element_text(face = "bold",
+                                   color="blue",
+                                   size = 10, angle = 45))
+
+
+```
+```{r}
+  ggplot(data_name, aes(x = name, y= Age, fill = name)) +
+  geom_bar( stat = "identity") +
+  
+  ggtitle(" Basic Bar Plot ") +
+  xlab("Name") +
+  ylab("Age") +
+  theme_bw() +
+  theme(axis.text.x = element_text(face = "bold", 
+                                   size = 10),
+        axis.text.y = element_text(face = "bold",
+          
+                                   size = 10, angle = 45))
+
+
+```
+
+```{r}
+ggplot(data_name, aes(x = name, y= Age, fill = name)) +
+  geom_bar( stat = "identity") +
+  
+  ggtitle(" Basic Bar Plot ") +
+  xlab("Name") +
+  ylab("Age") +
+  theme_bw() +
+  theme(axis.text.x = element_text(face = "bold", 
+                                   size = 10),
+        axis.text.y = element_text(face = "bold",
+          
+                                   size = 10, angle = 45))+
+  scale_y_continuous(breaks = seq(0,60, by=5))
+```
+
+
+```{r}
+library(corrplot)
+library(help= "ggcorrplot")
+ggplot(data_name, aes(x = name, y= Age, fill = name)) +
+  geom_bar() +
+  
+  ggtitle(" Basic Bar Plot ") +
+  xlab("Name") +
+  ylab("Age") +
+  theme_bw() +
+  theme(axis.text.x = element_text(face = "bold", 
+                                   size = 10),
+        axis.text.y = element_text(face = "bold",
+          
+                                   size = 10, angle = 45))+
+  scale_y_continuous(breaks = seq(0,60, by=5))
+
+```
+
+```{r}
+myiris <- iris[, -5]
+myiris
+hcorr <- cor(myiris)
+hcorr
+corrplot(hcorr)
+```
+```{r}
+corrplot(hcorr, method="number") # colorful no
+```
+
+
+```{r}
+corrplot(hcorr, method = "color", order = "alphabet")
+```
+
+```{r}
+g <- ggplot(iris, aes(x=as.factor(Species), y=Sepal.Width)) +
+geom_boxplot(varwidth=T, fill="plum") +
+  labs(title= "Box Plot",
+       subtitle="iris classification",
+       caption="Source: iris",
+       x="Sepal.Length",
+       y="Sepal.Width")
+  
+g
+```
+## EXPRORATORY DATA ANALYSIS ####
+```{r}
+
+```
+
