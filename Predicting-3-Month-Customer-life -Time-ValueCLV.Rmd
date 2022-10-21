@@ -1,0 +1,396 @@
+---
+title: "Predicting the 3-month CLV with R "
+output: html_notebook
+---
+
+# Customer Lifetime Value
+In marketing, it is always a challenge to budget for marketing campaigns. We do not want to spend too much and result in a negative ROI. However, we also do not want to spend too little and have no visible impact or outcome. When determining the budget for a marketing strategy, it is essential to know what the expected return will be from running a given marketing campaign. Understanding what the **customer lifetime value** (CLV) is for individual customers can help marketers justify their marketing budget, as well as target potential high-value customers. 
+
+The CLV measures customers' total worth to the business over the course of their lifetime relationship with the company. It is generally more expensive to acquire new customers than to keep existing customers, so knowing the lifetime value and the costs associated with acquiring new customers is essential in order to build marketing strategies with a positive ROI. 
+
+Because we do not typically know the lifetime span of customers, we often try to estimate CLV over the course of a certain period. It can be done by estimating a customer's 12-month CLV, 24-month CLV, or can also be a 3-month CLV.
+
+**Model Evaluation Metrics**
+1. mean squared error (MSE)
+2. median absolute error (MAE)
+3. R2 
+4. predicted versus actual scatter plot
+
+
+```{r}
+# Load libraries
+library(dplyr)
+library(readxl) #read .xls files
+library(caTools)
+library(reshape2) #for reshaping data
+library(ggplot2)
+library(lubridate)  #handle dates easily
+
+```
+
+
+```{r}
+# Read in data
+df <- read_excel('C:\\Users\\nenbon\\Downloads\\Online Retail.xlsx')
+```
+
+
+```{r}
+# view data
+head(df)
+```
+
+### Exploratory Data Analysis
+```{r}
+# get structure of data
+str(df)
+```
+Data has 542,909 rows and 8 columns. Also we have no issues with data types. i.e numeric columns are numeric, character columns are of char datatype
+
+
+##### Get unique values of columns/variables
+```{r}
+unique(df$Quantity)
+```
+We have negative values for `Quantity`, which represent canceled orders. We are going to ignore those canceled orders, so we will need to exclude them from our dataset.
+
+```{r}
+# take all of those rows with a positive Quantity value and storing them back to the variable df.
+df <- df[which(df$Quantity > 0),]
+```
+
+```{r}
+unique(df$Quantity)
+```
+
+Check new length of data
+```{r}
+# number of rows
+nrow(df)
+```
+Data has reduced from 542,909 to 531,285
+
+```{r}
+unique(df$UnitPrice)
+```
+
+
+```{r}
+# get unique countries
+unique(df$Country)
+```
+
+#### Check for missing values
+```{r}
+table(is.na(df))
+summary(is.na(df))
+
+```
+`Description` and `CustomerID` have missing values. We can either give them a unique ID or drop all customers without ID
+
+```{r}
+# drop all missing CustomerID and assign result to df
+df <- na.omit(df)
+```
+
+
+```{r}
+# check for missing values
+summary(is.na(df))
+```
+No more missing values. Again data size has reduced to 397,924
+```{r}
+
+```
+
+
+##### Check range of dates (`InvoiceDate`)
+```{r}
+sprintf("Date range is from %s  to  %s", min(df$InvoiceDate), max(df$InvoiceDate))
+```
+
+As you can see from this output, the dataset has all the transactions between December 1st, 2010 and December 9, 2011. The data for the last month, December of 2011, is not complete. In order to properly build a model for the 3 month customer value predictions, we are going to ignore the transactions in the last month.
+```{r}
+# Take only dates before December 2011 and reassign it to df. Note that this overides the previous value of df
+df <- df[which(df$InvoiceDate < '2011-12-01'),]
+```
+```{r}
+sprintf("Date range is from %s  to  %s", min(df$InvoiceDate), max(df$InvoiceDate))
+
+```
+
+we need to create a column for the total sales value for each transaction
+```{r}
+# Sales = Quantity * unit price
+df$Sales <- df$Quantity * df$UnitPrice
+head(df)
+```
+
+we are grouping `df` by two columns, `CustomerID` and `InvoiceNo`. Then, we are summing up all the `Sales` values for each customer and order, and taking the last transaction time for the given order as the `InvoiceDate`. This way we now have a DataFrame, `orders_df`, this way, we know about each order that each customer placed. 
+```{r}
+# per order data
+orders_df <- df %>%
+  group_by(CustomerID, InvoiceNo) %>% 
+  summarize(Sales=sum(Sales), InvoiceDate=max(InvoiceDate))
+orders_df
+```
+There are 4,298 unique Customers
+
+
+## Data Analysis
+In order to calculate the CLV, we need to know the frequency, recency, and total amount of purchases by each customer. We are going to compute basic information about each customer's average and lifetime purchase amount, as well as each customer's duration and frequency of purchases. 
+
+We will first group by the CustomerID column and aggregate the numbers by Sales and InvoiceDate columns. Using the min, max, sum, mean, and n functions in R, we can compute the minimum, maximum, and total purchase amount, as well as the average amount and the number of purchases for each customer. We also use the min and max functions to get the first and last order dates for each customer. For PurchaseDuration, we are taking the number of days between the last and the first order dates. For PurchaseFrequency, we are dividing the PurchaseDuration number by the number of orders to get the average number of days between purchases.
+
+
+```{r}
+# order amount & frequency summary
+summary_df <- orders_df %>%  #orders df and then,
+  group_by(CustomerID) %>%  #groupby CustomerID
+  summarize(
+    SalesMin=min(Sales), 
+    SalesMax=max(Sales), 
+    SalesSum=sum(Sales), 
+    SalesAvg=mean(Sales), 
+    SalesCount=n(),   #get count of sales (per customer)
+    InvoiceDateMin=min(InvoiceDate), 
+    InvoiceDateMax=max(InvoiceDate), 
+    PurchaseDuration=as.double(floor(max(InvoiceDate)-min(InvoiceDate))),
+    PurchaseFrequency=as.double(floor(max(InvoiceDate)-min(InvoiceDate)))/n()
+  )
+summary_df
+```
+This data gives us an idea of the purchases each customer has made. For example, the customer with ID 12346 only made one purchase on January 18, 2011. However, the customer with ID 12347 has made six purchases that range from December 7, 2010 to October 31, 2011, or over the course of 327 days. The average amount this customer spent on each order is about 681 and, on average, this customer made a purchase every 54.5 days.
+
+#### Distributions of the number of purchases that the repeat customers have made
+We first exclude customers with only one purchase from our analysis 
+```{r}
+freq_cust <- summary_df[which(summary_df$PurchaseDuration > 0),]
+freq_cust
+```
+
+Then, we count the number of customers for each SalesCount. 
+```{r}
+salesCount <- freq_cust %>% 
+  group_by(SalesCount) %>% 
+  summarize(Count_of_Customers=n())
+salesCount
+```
+
+Lastly, we create a bar plot using ggplot and geom_bar to display this data.We are using `salesCount[1:19,]` to plot for the first 19 rows of data. note that count begins from 2
+ 
+```{r}
+ggplot(salesCount[1:19,], aes(x=SalesCount, y=Count_of_Customers)) +
+  geom_bar(width=0.5, stat="identity") +
+  ggtitle('') +
+  xlab("Sales Count") +
+  ylab("Count") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+Majority of customers have made 10 or less purchases historically
+
+We build a histogram with the purchase frequency data using the hist function in R. The breaks parameter defines the number of histogram bins to build.
+```{r}
+ggplot(salesCount[,], aes(x=SalesCount, y=Count_of_Customers)) +
+  geom_bar(width=0.5, stat="identity") +
+  ggtitle('') +
+  xlab("Sales Count") +
+  ylab("Count") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+```{r}
+hist(
+  freq_cust$PurchaseFrequency, 
+  breaks=20,
+  xlab='avg. number of days between purchases',
+  ylab='count',
+  main=''
+)
+```
+As you can see from this plot, the majority of repeat customers made purchases every 20 to 50 days.
+
+```{r}
+```
+
+## Predicting the 3 month CLV
+We build a model that predicts the 3 month customer value in R. We are going to first slice the data into chunks of 3 months and take the last 3 month data as the target for predictions and the rest as the features. We will first prepare our data for model building and then train a linear regression model for the 3 month customer value predictions.
+
+#### Data preparation
+Using the round_date function in the lubridate package, we first round InvoiceDate to the nearest quarter. Then, we group the data by CustomerID and the newly-created column, `Quarter`, to get the quarterly sales data for each customer. For each group of 3 month time window, we sum up all of the sales, take the average of purchase amount, and the total number of purchases for the given period for each customer. 
+```{r}
+# group data into every 3 months
+orders_df$Quarter = as.character(round_date(orders_df$InvoiceDate, '3 months'))
+orders_df
+data_df <- orders_df %>%
+  group_by(CustomerID, Quarter) %>%
+  summarize(SalesSum=sum(Sales), SalesAvg=mean(Sales), SalesCount=n())
+data_df
+```
+
+```{r}
+sprintf("Date range is between %s  and  %s", min(orders_df$Quarter), max(orders_df$Quarter))
+```
+
+
+Let's encode the Quarter column values to make them easier to read than the current date format. 
+```{r}
+data_df$Quarter[data_df$Quarter == "2012-01-01"] <- ""
+data_df$Quarter[data_df$Quarter == "2011-10-01"] <- "Q1"
+data_df$Quarter[data_df$Quarter == "2011-07-01"] <- "Q2"
+data_df$Quarter[data_df$Quarter == "2011-04-01"] <- "Q3"
+data_df$Quarter[data_df$Quarter == "2011-01-01"] <- "Q4"
+data_df
+```
+
+
+we are going to use the last 3 months as the target variable and the rest as the features. In order to train such a model, we need to transform this data into tabular data, where the rows represent the individual customers and the columns represent each feature.
+```{r}
+salesSumFeatures_df <- dcast(
+  data_df[which(data_df$Quarter != "Q1"),], 
+  CustomerID ~ Quarter, 
+  value.var="SalesSum"
+)
+colnames(salesSumFeatures_df) <- c("CustomerID", "SalesSum.Q2", "SalesSum.Q3", "SalesSum.Q4", "SalesSum.Q5")
+salesSumFeatures_df
+```
+
+
+```{r}
+salesAvgFeatures_df <- dcast(
+  data_df[which(data_df$Quarter != "Q1"),], 
+  CustomerID ~ Quarter, 
+  value.var="SalesAvg"
+)
+colnames(salesAvgFeatures_df) <- c("CustomerID", "SalesAvg.Q2", "SalsalesAvgFeatures_dfesAvg.Q3", "SalesAvg.Q4", "SalesAvg.Q5")
+salesAvgFeatures_df
+```
+
+ 
+```{r}
+salesCountFeatures_df <- dcast(
+  data_df[which(data_df$Quarter != "Q1"),], 
+  CustomerID ~ Quarter, 
+  value.var="SalesCount"
+)
+colnames(salesCountFeatures_df) <- c("CustomerID", "SalesCount.Q2", "SalesCount.Q3", "SalesCount.Q4", "SalesCount.Q5")
+salesCountFeatures_df
+```
+
+
+```{r}
+features_df <- merge(
+  merge(salesSumFeatures_df, salesAvgFeatures_df, by="CustomerID"),
+  salesCountFeatures_df, by="CustomerID"
+)
+# fill NAs with 0
+features_df[is.na(features_df)] <- 0
+
+features_df
+```
+
+**Target/Response variable**
+we are taking the last 3 month period, **Q1 group**, as the target variable. The target column will be SalesSum, as we want to predict the next 3 month customer value, which is the total purchase amount that a given customer is likely to make in the next 3 months.
+```{r}
+response_df <- data_df[which(data_df$Quarter == "Q1"),] %>% 
+    select(CustomerID, SalesSum)
+
+colnames(response_df) <- c("CustomerID", "CLV_3_Month")
+response_df
+```
+
+Combining features and response data together.
+we simply join the two DataFrames on CustomerID using the merge function. By having the `all.x=TRUE` flag, we take all records in the features data, even if there is no corresponding data in the response data. This is a case where the given customer did not make any purchases in the last 3 months, so we encode them as 0. 
+```{r}
+sample_df <- merge(features_df, response_df, by="CustomerID", all.x=TRUE)
+sample_df[is.na(sample_df)] <- 0
+sample_df
+```
+
+## Linear regression
+
+```{r}
+# train/test set split
+
+sample <- sample.split(sample_df$CustomerID, SplitRatio = .8)
+
+train <- subset(sample_df, sample == TRUE)[,-1]
+test <- subset(sample_df, sample == FALSE)[,-1]
+```
+
+
+```{r}
+# Linear regression model
+regFit <- lm(CLV_3_Month ~ ., data=train)
+```
+
+
+```{r}
+summary(regFit)
+```
+
+#### Evaluating regression model performance
+```{r}
+train_preds <- predict(regFit, train)
+test_preds <- predict(regFit, test)
+```
+
+
+```{r}
+# R-squared
+#install.packages('miscTools')
+library(miscTools)
+
+train_R2 <- rSquared(train$CLV_3_Month, resid=train$CLV_3_Month - train_preds)
+test_R2 <- rSquared(test$CLV_3_Month, resid=test$CLV_3_Month - test_preds)
+```
+
+```{r}
+sprintf("Train R-Squared:  %0.4f", train_R2)
+sprintf("Test R-Squared:  %0.4f", test_R2)
+```
+
+#### Median Absolute Error
+```{r}
+train_MAE <- median(abs(train$CLV_3_Month - train_preds))
+test_MAE <- median(abs(test$CLV_3_Month - test_preds))
+```
+
+
+```{r}
+sprintf("Train MAE:  %0.4f", train_MAE)
+sprintf("Test MAE:  %0.4f", test_MAE)
+
+```
+
+
+```{r}
+plot(
+  test$CLV_3_Month, 
+  test_preds, 
+  xlab='actual', 
+  ylab='predicted', 
+  main='Out-of-Sample Actual vs. Predicted'
+)
+abline(a=0, b=1)
+```
+
+
+```{r}
+par(mfrow = c(1, 2)) 
+# histogram plot to show distribution of residuals
+hist(multi_model$residuals, xlab = "Residuals", col = "gray", 
+     main = "Residuals Distribution")
+# QQ plot of residuals
+qqnorm(multi_model$residuals, main = "Q-Q Plot of Residuals") 
+qqline(multi_model$residuals) #include fitted line
+
+```
+
+
+```{r}
+```
+
